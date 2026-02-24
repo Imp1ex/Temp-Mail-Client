@@ -4,6 +4,37 @@ import requests
 import urllib.parse
 import time
 
+def emailnator(domain=["domain", "plusGmail", "dotGmail", "googleMail"], proxies=None):
+    session = requests.Session()
+    session.proxies = proxies
+    url = "https://www.emailnator.com/"
+
+    response = session.get(url)
+    status_code = response.status_code
+
+    if status_code != 200:
+        raise Exception(f"Failed to request emailnator Code: {status_code}")
+
+    cookies = response.cookies.get_dict()
+    xsrf = urllib.parse.unquote(cookies['XSRF-TOKEN'])
+
+    url = "https://www.emailnator.com/generate-email"
+
+    payload = { "email": domain }
+    headers = {
+        "X-XSRF-TOKEN": xsrf,
+    }
+
+    response = session.post(url, json=payload, headers=headers)
+
+    try:
+        data = response.json()
+        email = data['email'][0]
+        return email, session
+    except:
+        raise Exception(f"Failed to generate email Code: {response.status_code}")
+
+
 def parse_email_content(content):
     content = html.unescape(content)
     name, from_email, subject, time_str, body = "", "", "", "", ""
@@ -41,37 +72,6 @@ def parse_email_content(content):
         "time": time_str,
         "body": body,
     }
-
-
-def emailnator(proxies=None):
-    session = requests.Session()
-    session.proxies = proxies
-    url = "https://www.emailnator.com/"
-
-    response = session.get(url)
-    status_code = response.status_code
-
-    if status_code != 200:
-        raise Exception(f"Failed to request emailnator Code: {status_code}")
-
-    cookies = response.cookies.get_dict()
-    xsrf = urllib.parse.unquote(cookies['XSRF-TOKEN'])
-
-    url = "https://www.emailnator.com/generate-email"
-
-    payload = { "email": ["domain", "plusGmail", "dotGmail", "googleMail"] }
-    headers = {
-        "X-XSRF-TOKEN": xsrf,
-    }
-
-    response = session.post(url, json=payload, headers=headers)
-
-    try:
-        data = response.json()
-        email = data['email'][0]
-        return email, session
-    except:
-        raise Exception(f"Failed to generate email Code: {response.status_code}")
 
 
 def message_list(email, session):
@@ -117,24 +117,3 @@ def message_data(email, session, message_id):
     raw_data = html.unescape(raw_data)
     parsed = parse_email_content(raw_data)
     return {**parsed, "raw_data": raw_data}, session
-
-
-email, session = emailnator()
-print(email)
-
-while True:
-    messages, session = message_list(email, session)
-    msg_data = messages.get('messageData') or []
-    print(msg_data)
-    if msg_data:
-        message_id = msg_data[0]['messageID']
-        print(message_id)
-        result, session = message_data(email, session, message_id)
-        print("Name:", result["name"])
-        print("Email:", result["email"])
-        print("Subject:", result["subject"])
-        print("Time:", result["time"])
-        print("Body:", result["body"])
-        print("Raw Data:", result["raw_data"])
-        break
-    time.sleep(5)
